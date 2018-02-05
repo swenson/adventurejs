@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <title>ADVENTURE</title>
+
+    <style>
+      body, * {
+        font-family: Courier, "Courier New", monospace;
+      }
+
+      body {
+        color: #0F1219;
+        background-color: #F4F0F5;
+      }
+      pre, input {
+        font-size: 12pt;
+      }
+
+      input[type="text"] {
+        border-radius: 3px;
+        font-size: 14pt;
+      }
+
+      pre {
+        width: 60%;
+        height: 256px;
+        overflow: scroll;
+        overflow-x: hidden;
+        scrollbar-face-color: #367CD2;
+        scrollbar-shadow-color: #FFFFFF;
+        scrollbar-highlight-color: #FFFFFF;
+        scrollbar-3dlight-color: #FFFFFF;
+        scrollbar-darkshadow-color: #FFFFFF;
+        scrollbar-track-color: #FFFFFF;
+        scrollbar-arrow-color: #FFFFFF;
+      }
+      pre::-webkit-scrollbar {
+          width: 12px;
+      }
+      pre::-webkit-scrollbar-track {
+          -webkit-box-shadow: inset 0 0 6px rgba(61,116,196,0.8);
+          -webkit-border-radius: 10px;
+          border-radius: 10px;
+      }
+      pre::-webkit-scrollbar-thumb {
+          -webkit-border-radius: 10px;
+          border-radius: 10px;
+          background: rgba(61,116,196,0.8);
+          -webkit-box-shadow: inset 0 0 6px rgba(0,0,0,0.5);
+      }
+
+      h1, h2, h3 {
+        color: #3D74C4;
+      }
+
+      a {
+        color: #ACE1FF;
+      }
+
+      ::-webkit-scrollbar {
+        color
+      }
+      ::-webkit-scrollbar-button       { /* 2 */ }
+      ::-webkit-scrollbar-track        { /* 3 */ }
+      ::-webkit-scrollbar-track-piece  { /* 4 */ }
+      ::-webkit-scrollbar-thumb        { /* 5 */ }
+      ::-webkit-scrollbar-corner       { /* 6 */ }
+      ::-webkit-resizer                { /* 7 */ }
+    </style>
+
+    <script
+        id="batavia-adventure"
+        type="application/python-bytecode"
+        data-filename="interpret.py">
+</script>
+
+<script type="text/js-worker">
+importScripts('https://swenson.github.io/adventurejs/batavia.js', 'https://swenson.github.io/adventurejs/fortran.js')
+var incoming = []
+onmessage = function(event) {
+  incoming.push(event.data)
+};
+
+function Stderr() {
+}
+Stderr.prototype.write = function(buffer) {
+  // Also echo to the console
+  console.log(buffer)
+  postMessage([1, buffer])
+}
+
+Stderr.prototype.flush = function() {}
+
+
+function Stdout() {
+}
+
+Stdout.prototype.write = function(buffer) {
+  // Also echo to the console
+  console.log(buffer)
+  postMessage([0, buffer])
+}
+
+Stdout.prototype.flush = function() {}
+
+function Stdin() {
+
+}
+Stdin.prototype.read = function(args, kwargs) {
+  if (incoming.length) {
+      return incoming.pop(0)
+  }
+  return ''
+}
+
+console.log('Create VM');
+
+var loader = function (name) {
+    var filename = '<input>';
+    // Strip all the whitespace out of the text content of
+    // the script tag.
+    return {
+        '$pyclass': true,
+        'bytecode': text.replace(/(\r\n|\n|\r)/gm, '').trim(),
+        'filename': new batavia.types.Str(filename)
+    };
+};
+
+var progress = {
+  'init_progress': function(i, n) {
+    postMessage([3, i, n])
+  },
+  'parse_progress': function(i, n) {
+    postMessage([2, i, n])
+  }
+}
+
+var vm = new batavia.VirtualMachine({
+    stdout: new Stdout(),
+    stdin: new Stdin(),
+    stderr: new Stderr(),
+    misc: progress,
+    frame: null,
+    loader: loader
+});
+
+var resume = function() {
+  setTimeout(function() {
+    vm.resume(resume)
+  }, 0)
+}
+
+console.log('Running...');
+vm.run('adventure', [], resume);
+console.log('done.');
+
+</script>
+
+    <script>
+
+
+function enter() {
+  var input = document.getElementById('stdin')
+  var text = input.value
+  input.value = ''
+  document.worker.postMessage(text)
+}
+
+function checkDebug() {
+  var check = document.getElementById('debug')
+  if (check.checked) {
+    document.getElementById('debugger').style.display = 'block'
+  } else {
+    document.getElementById('debugger').style.display = 'none'
+  }
+}
+
+function bootstrap() {
+  var maxHeight = 2048;
+  var blob = new Blob(Array.prototype.map.call(document.querySelectorAll('script[type=\'text\/js-worker\']'), function (oScript) { return oScript.textContent; }),{type: 'text/javascript'});
+  var stderr = document.getElementById('stderr')
+  var stdout = document.getElementById('stdout')
+
+  document.worker = new Worker(window.URL.createObjectURL(blob));
+  document.worker.onmessage = function(incoming) {
+    var which = incoming.data[0]
+    if (which <= 1) {
+      // console
+      var out = incoming.data[1]
+
+      var elt = stdout
+      if (which === 1) {
+        elt = stderr
+      }
+
+      var node = document.createTextNode(out)
+      elt.appendChild(node)
+      while (elt.childNodes.length > maxHeight) {
+        elt.removeChild(elt.firstChild)
+      }
+      elt.scrollTop = elt.scrollHeight
+    } else if (which <= 3) {
+      // progress bars
+      var start = incoming.data[1].val.c[0]
+      var outOf = incoming.data[2].val.c[0] - 1
+      var parsingProgress = document.getElementById('parsing-progress')
+      var initProgress = document.getElementById('init-progress')
+      var progress = parsingProgress
+      if (which == 3) {
+        progress = initProgress
+      }
+      progress.value = start
+      progress.max = outOf
+    }
+  }
+}
+
+    </script>
+
+</head>
+
+<body onload="bootstrap();">
+    <h1>Colossal Cave Adventure (1977)</h1>
+    <div id="progress-container">
+      <p>(This will take a long time to load.)</p>
+      <p>Parsing program <progress id="parsing-progress" value="0" max="730"></progress></p>
+      <p>Initializing&nbsp;&nbsp;&nbsp; <progress id="init-progress" value="0" max="25412"></progress></p>
+    </div>
+    <h2>Teletype Output</h3>
+    <pre id="stdout"></pre>
+    <h2>Keyboard Input</h3>
+    <input id="stdin" type="text" minlength=1 maxlength=20 onkeydown="if (event.keyCode === 13) enter()" ></input>
+    <button onClick="enter()">RETURN</button>
+    <br />
+    <br />
+    Debug Mode <input id="debug" type="checkbox" checked onclick="checkDebug()"></input>
+    <div id="debugger">
+      <hr/>
+      <h2>Debug Console (internal state)</h3>
+      <pre id="stderr"></pre>
+    </div>
+    <hr/>
+    <h2>About this page</h2>
+    <p>This is running in a partial FOTRAN IV interpreter and PDP-10 simulator, written in Python.
+    The source code can be found <a href="https://github.com/swenson/adventure">here</a>.</p>
+    <p>That is itself run through <a href="https://github.com/pybee/batavia">Batavia</a>,
+      a Python interpreter written in JavaScript.</p>
+    <p>FORTRAN interpreter and web site by <a href="http://swenson.io/">Christopher Swenson</a>.</p>
+    <h3>More about Batavia</h3>
+    <p>Batavia, and the larger <a href="http://pybee.org/" target="_blank">BeeWare project</a>, is open source and welcomes contributions!</p>
+</body>
+</html>
